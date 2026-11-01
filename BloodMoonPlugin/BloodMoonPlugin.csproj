@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- A Blood Moon event Imlight plugin. Build it, then copy BloodMoonPlugin.dll into the server's plugins/ directory. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Point this to your copy of Imlight -->
+    <ProjectReference Include="..\..\..\Imlight\src\Imlight.PluginApi\Imlight.PluginApi.csproj">
+      <Private>false</Private>
+    </ProjectReference>
+  </ItemGroup>
+
+</Project>

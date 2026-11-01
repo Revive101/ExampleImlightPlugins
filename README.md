@@ -9,6 +9,7 @@ Example plugins for the Imlight Plugin API. Each one is a separate project you c
 | [ExamplePlugin](ExamplePlugin) | The basics: plugin setup, subscribing to events, registering commands, and working with players and zones. Start here. |
 | [BlackjackPlugin](BlackjackPlugin) | Changing player attributes (gold) and building complex commands with subcommands and per-player state. |
 | [SetHomePlugin](SetHomePlugin) | Overriding game behaviour by cancelling events, and saving data persistently to the plugin's data folder. |
+| [BloodMoonPlugin](BloodMoonPlugin) | Changing creatures at runtime, following duels from start to finish, and running a timed event. |
 
 Each folder has its own README with more detail.
 
