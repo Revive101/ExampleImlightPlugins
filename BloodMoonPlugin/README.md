@@ -6,7 +6,7 @@ This plugin builds on [ExamplePlugin](../ExamplePlugin) and shows how to work wi
 
 - **Changing creatures while the server runs.** It changes every creature in the world, catches new spawns, and puts everything back afterwards.
 - **Following a duel from start to finish.** It tracks which creatures are in a fight and rewards the winners.
-- **Running something on a schedule.** A timer starts and ends the event without anyone using a command.
+- **Running something on a schedule.** The API's scheduler starts and ends the event without anyone using a command.
 
 ## How to use
 
@@ -16,7 +16,7 @@ This plugin builds on [ExamplePlugin](../ExamplePlugin) and shows how to work wi
 | `.startbloodmoon` | Administrators | Starts a Blood Moon now. |
 | `.stopbloodmoon` | Administrators | Ends the Blood Moon now. |
 
-The first moon rises one interval after the server starts. The timer restarts when a moon starts or ends, including from a command.
+The first moon rises one interval after the server starts. The countdown restarts when a moon starts or ends, including from a command.
 
 The moon only affects creatures in shared zones. Dungeons and other instances, bosses, summoned minions and fights already running when it rises are left alone.
 
@@ -47,8 +47,12 @@ The plugin writes `config.json` to its data folder on first run. Changes take ef
 - **Tracking participants:** `OnDuelStart` gives the starting creatures, and `OnDuelistJoin` gives any that join later. Defeated creatures have left `IDuel.Creatures` by the time `OnDuelEnd` fires, so the bounty is added up as creatures arrive.
 - **Sigils are reused:** `IDuel.Id` is the sigil's ID, so `OnDuelStart` clears any bounty left over from an earlier fight there that nobody won.
 
+### Scheduling
+- **One change at a time:** each change is booked with `Scheduler.RunAfter`, because the wait depends on what comes next and a command can restart it. `Schedule()` cancels the change that was waiting before booking the new one.
+- **Nothing to clean up:** the server cancels a plugin's tasks before `OnDisable`, and logs any exception a task throws.
+
 ### Thread safety
-Commands, the timer and every creature's actor can reach the moon's state at the same time, so it's all guarded by one `lock`. An exception on a timer thread would crash the server, so `OnTimer()` catches everything.
+Commands, scheduled tasks and every creature's actor can reach the moon's state at the same time, so it's all guarded by one `lock`.
 
 ## Building
 

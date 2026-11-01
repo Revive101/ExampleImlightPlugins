@@ -4,10 +4,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
-using System.Threading;
 using Imlight.PluginApi;
 using Imlight.PluginApi.Commands;
 using Imlight.PluginApi.Events;
+using Imlight.PluginApi.Scheduling;
 
 namespace BloodMoonPlugin;
 
@@ -36,12 +36,13 @@ public sealed class BloodMoonPlugin : ImlightPlugin {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     private Config config = new();
-    private Timer? timer;
 
-    // Guards active, nextChange and empowered. Timers, commands and every creature's actor all reach this state.
+    // Guards active, nextChange, changeTask and empowered. Scheduled tasks, commands and every creature's actor all
+    // reach this state.
     private readonly object moonLock = new();
     private bool active;
     private DateTime nextChange;
+    private IScheduledTask? changeTask;
     private readonly Dictionary<ulong, OriginalStats> empowered = [];
 
     // Bonus gold each running duel will pay its winners, keyed by duel id. A sigil reuses its id for the next fight.
@@ -104,13 +105,10 @@ public sealed class BloodMoonPlugin : ImlightPlugin {
             }
         });
 
-        timer = new Timer(_ => OnTimer());
         lock (moonLock) {
             Schedule(TimeSpan.FromMinutes(config.IntervalMinutes));
         }
     }
-
-    public override void OnDisable() => timer?.Dispose();
 
     private void LoadConfig() {
         if (File.Exists(ConfigPath)) {
@@ -128,20 +126,15 @@ public sealed class BloodMoonPlugin : ImlightPlugin {
         }
     }
 
-    private void OnTimer() {
-        // An exception on a timer thread would take the whole server down.
-        try {
-            bool isUp;
-            lock (moonLock) {
-                isUp = active;
-            }
-            if (isUp) {
-                Set();
-            } else {
-                Rise();
-            }
-        } catch (Exception ex) {
-            Console.WriteLine($"[BloodMoon] Timer failed: {ex}");
+    private void ChangeMoon() {
+        bool isUp;
+        lock (moonLock) {
+            isUp = active;
+        }
+        if (isUp) {
+            Set();
+        } else {
+            Rise();
         }
     }
 
@@ -191,7 +184,9 @@ public sealed class BloodMoonPlugin : ImlightPlugin {
     // Callers hold moonLock.
     private void Schedule(TimeSpan delay) {
         nextChange = DateTime.UtcNow + delay;
-        timer?.Change(delay, Timeout.InfiniteTimeSpan);
+        // A command can change the moon early, so the change that was waiting has to go.
+        changeTask?.Cancel();
+        changeTask = Scheduler.RunAfter(delay, ChangeMoon);
     }
 
     // Callers hold moonLock.
