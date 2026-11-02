@@ -23,7 +23,11 @@ public sealed class ExamplePlugin : ImlightPlugin {
             }
         });
 
-        Events.Subscribe<OnPlayerDamage>(e => e.Player.SendMessage($"You took {e.Damage}"));
+        Events.Subscribe<OnDuelistDamage>(e => {
+            IPlayer? player = e.Duelist as IPlayer;
+            if (player is null) return;
+            player.SendMessage($"You took {e.Damage}");
+        });
         Events.Subscribe<OnPlayerKnockout>(e => e.Player.SendMessage($"You have been knocked out"));
 
         Commands.Register("ping", c => c.Reply("Pong!"), aliases: ["boing"]);
