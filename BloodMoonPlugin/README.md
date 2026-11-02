@@ -32,7 +32,7 @@ The plugin writes `config.json` to its data folder on first run. Changes take ef
 | `ProximityMultiplier` | `2` | Multiplies how close a player must come to start a fight. Creatures with a proximity of 0 stay at 0. |
 | `IntelligenceBonus` | `0.25` | Added to the chance a creature picks its strongest spell, up to 1. |
 | `AggressivenessBonus` | `0.25` | Added to the chance a creature attacks rather than prepares, up to 1. |
-| `GoldPerCreatureLevel` | `5` | Bonus gold per level of each empowered creature in a duel. Each winner gets the full amount. |
+| `GoldPerCreatureLevel` | `5` | Bonus gold per level of each empowered creature defeated in a duel. It's added to the creature's loot, and each winner gets the full amount. |
 
 ## What it shows
 
@@ -43,9 +43,10 @@ The plugin writes `config.json` to its data folder on first run. Changes take ef
 - **Putting things back:** the original stats are stored by `GlobalId`. Creatures that are mid-fight when the moon sets keep their stats, because lowering their max health would take health away in the middle of a duel. They're forgotten when `OnCreatureDespawn` fires.
 
 ### Following a duel
-- **Bonus gold, not doubled gold:** the API can't change the rewards a duel gives, so this is paid on top. `OnDuelEnd` fires before the game gives its own rewards.
-- **Tracking participants:** `OnDuelStart` gives the starting creatures, and `OnDuelistJoin` gives any that join later. Defeated creatures have left `IDuel.Creatures` by the time `OnDuelEnd` fires, so the bounty is added up as creatures arrive.
-- **Sigils are reused:** `IDuel.Id` is the sigil's ID, so `OnDuelStart` clears any bounty left over from an earlier fight there that nobody won.
+- **Editing the loot:** `OnCreatureLoot` fires once per defeated creature for each winner, and whatever `Gold` holds after the handlers run is what the player gets. The bonus shows up in the normal loot popup, even for a creature that dropped nothing.
+- **Matching loot to a creature:** the creature is gone by the time its loot rolls, so the event only gives its template. `OnDuelEnd` fires first and gives each winner a list of the duel's bounties, and each loot event claims one for its template. A creature that wasn't empowered has no bounty to claim, even if it shares a template with one that was.
+- **Tracking participants:** `OnDuelStart` gives the starting creatures, and `OnDuelistJoin` gives any that join later. Defeated creatures have left `IDuel.Creatures` by the time `OnDuelEnd` fires, so the bounties are recorded as creatures arrive.
+- **Sigils are reused:** `IDuel.Id` is the sigil's ID, so `OnDuelStart` clears any bounties left over from an earlier fight there that nobody won.
 
 ### Scheduling
 - **One change at a time:** each change is booked with `Scheduler.RunAfter`, because the wait depends on what comes next and a command can restart it. `Schedule()` cancels the change that was waiting before booking the new one.

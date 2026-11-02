@@ -33,6 +33,9 @@ public sealed class BloodMoonPlugin : ImlightPlugin {
     private sealed record OriginalStats(ICreature Creature, int MaxHealth, float Intelligence, float Aggressiveness,
         float Proximity);
 
+    // The bonus gold for defeating one creature. Loot only names a creature by template, so that's what this matches on.
+    private sealed record Bounty(ulong CreatureTemplateId, int Gold);
+
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     private Config config = new();
@@ -45,8 +48,11 @@ public sealed class BloodMoonPlugin : ImlightPlugin {
     private IScheduledTask? changeTask;
     private readonly Dictionary<ulong, OriginalStats> empowered = [];
 
-    // Bonus gold each running duel will pay its winners, keyed by duel id. A sigil reuses its id for the next fight.
-    private readonly ConcurrentDictionary<ulong, int> bounties = [];
+    // The bounties in each running duel, keyed by duel id. A sigil reuses its id for the next fight.
+    private readonly ConcurrentDictionary<ulong, ConcurrentBag<Bounty>> bounties = [];
+
+    // The bounties each winner has yet to get from their loot, keyed by character id. Every winner has their own list.
+    private readonly ConcurrentDictionary<ulong, List<Bounty>> unclaimed = [];
 
     private string ConfigPath => Path.Combine(DataFolder, "config.json");
 
@@ -96,12 +102,21 @@ public sealed class BloodMoonPlugin : ImlightPlugin {
             }
         });
         Events.Subscribe<OnDuelEnd>(e => {
-            if (!bounties.TryRemove(e.Duel.Id, out int bounty)) {
+            bounties.TryRemove(e.Duel.Id, out ConcurrentBag<Bounty>? won);
+            foreach (IPlayer winner in e.Winners) {
+                // Replaces anything left from an earlier duel, such as loot that a disconnect stopped from rolling.
+                unclaimed[winner.CharacterId] = [.. won ?? []];
+            }
+        });
+        // Fires once per creature, on the winner's session, after OnDuelEnd has filled in their list.
+        Events.Subscribe<OnCreatureLoot>(e => {
+            if (!unclaimed.TryGetValue(e.Player.CharacterId, out List<Bounty>? owed)) {
                 return;
             }
-            foreach (IPlayer winner in e.Winners) {
-                winner.AddGold(bounty);
-                winner.SendMessage($"The Blood Moon rewards you with {bounty} bonus gold!");
+            int index = owed.FindIndex(x => x.CreatureTemplateId == e.CreatureTemplateId);
+            if (index >= 0) {
+                e.Gold += owed[index].Gold;
+                owed.RemoveAt(index);
             }
         });
 
@@ -226,8 +241,8 @@ public sealed class BloodMoonPlugin : ImlightPlugin {
                 return;
             }
         }
-        int bounty = creature.Level * config.GoldPerCreatureLevel;
-        bounties.AddOrUpdate(duel.Id, bounty, (_, total) => total + bounty);
+        bounties.GetOrAdd(duel.Id, _ => []).Add(new Bounty(creature.TemplateId,
+            creature.Level * config.GoldPerCreatureLevel));
     }
 
     private string Status() {
